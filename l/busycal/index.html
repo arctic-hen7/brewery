@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Protected Document</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+ body {font-family:'Inter',sans-serif}
+ .fade-in{animation:fadeIn .5s ease-in-out}
+ @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+ #decryption-ui.hidden{display:none}
+</style>
+</head>
+<body id="body-container" class="bg-gray-100">
+
+<div id="decryption-ui" class="flex items-center justify-center min-h-screen p-4">
+  <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl border border-gray-200 p-8 space-y-6 text-center fade-in">
+    <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+    </svg>
+    <h1 class="text-2xl font-bold text-gray-800">Protected Document</h1>
+    <p class="text-gray-600">Please enter the passphrase to view this content.</p>
+
+    <div class="space-y-4">
+      <input id="passphrase-decrypt" type="password" class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Enter passphrase">
+      <button id="decryptBtn-decrypt" class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+        Unlock &amp; View
+      </button>
+    </div>
+
+    <p id="status-decrypt" class="text-sm font-medium text-red-600 h-5"></p>
+  </div>
+</div>
+
+<script>
+(function(){
+const saltB64 = 'simMRa/OcksHFv9g9hAPBg==';
+const ivB64   = 'TNDBFFaUYkk5BLqn';
+const encryptedB64 = '6m6C3NLFxixPUkXYduyYqz+y3syiqcN5r6Ym04RjrDt7F0LB1iMuFh38MkbxLMck1/WZQYyiiXqAjfLifsYXYN7NVIBoXk967Huk7Iv/c7EUZ6CAx2kFU4Hn7pcdVjA1UxWdIhdobmr9Hjzk+VoXIS+6XnvxqXmFwPGwyLwVqMOMypRv+duFjzXl8sSAU5D6QGUKq2OGseB1Dk/kvOJ1gQcjH5etcPI07ami76Uun9n9IYtB69P8iN83iJqMZ2mgKMhDh5PwuSnHZkWT/mCKOkCvpRyR3i1XPh/iYFjyRZOyz7Ws5exaTViVpR4PWU7RvmbaQTIfTO4szshcqa7uPoAItT2g5dzhXIcQZ0ELS9UX1WXEmKQcKpmPtLf/hQ2SiOrd1ISokkJls3YqYLAMiFjBOCXLloxBNVcoRrlJqxdYUYGtnT8hMLI6cKlmQiUvMedJgTtKH85vThwU4NH9Ydt59xxJ+Qpuu7cM8NSN0/gQgVPyxTl1xpH3+4G/HLtiokvKFO4+Sy8BFSU6uuHhAMKCk5x+j1aZkZLu/06a7xrFiPHd1fE1w/Q3y3ljT9ccgvr3t78ssn3HRAwpj8xM0dJv4mtvb8gy/b55uA6l5QQwPE9SAdmzgzsIuLFA';
+
+const passInput = document.getElementById('passphrase-decrypt');
+const button    = document.getElementById('decryptBtn-decrypt');
+const statusDiv = document.getElementById('status-decrypt');
+
+passInput.addEventListener('keyup', e => { if(e.key==='Enter') button.click(); });
+
+button.addEventListener('click', async ()=>{
+  const pwd = passInput.value;
+  if(!pwd){ statusDiv.textContent='Passphrase cannot be empty.'; return; }
+
+  button.disabled=true; button.textContent='Decrypting…'; statusDiv.textContent='';
+
+  try{
+    const salt = b64ToBuf(saltB64);
+    const iv   = b64ToBuf(ivB64);
+    const data = b64ToBuf(encryptedB64);
+
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(pwd), {name:'PBKDF2'}, false, ['deriveKey']
+    );
+    const key = await crypto.subtle.deriveKey(
+      {name:'PBKDF2',salt,iterations:300000,hash:'SHA-256'},
+      keyMaterial,{name:'AES-GCM',length:256}, false, ['decrypt']
+    );
+
+    const plaintext = await crypto.subtle.decrypt({name:'AES-GCM',iv}, key, data);
+    const html = new TextDecoder().decode(plaintext);
+
+    document.open(); document.write(html); document.close();
+  }catch(e){
+    console.error(e);
+    statusDiv.textContent='Invalid passphrase or corrupt file.';
+    button.disabled=false;
+    button.textContent='Unlock & View';
+  }
+});
+
+function b64ToBuf(b64){
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return arr.buffer;
+}
+})();
+</script>
+</body>
+</html>
